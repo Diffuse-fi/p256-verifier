@@ -156,7 +156,7 @@ contract P256Verifier {
 
         // initialise (X, Y) depending on the first active bitpair.
         // invariant(bitpair != 0); // bitpair == 0 is only possible if u and v are 0.
-        
+
         if (bitpair == 1) {
             (X, Y) = (GX, GY);
         } else if (bitpair == 2) {
@@ -192,7 +192,7 @@ contract P256Verifier {
 
     /**
      * @dev Compute the bits at `index` of u and v and return
-     * them as 2 bit concatenation. The bit at index 0 is on 
+     * them as 2 bit concatenation. The bit at index 0 is on
      * if the `index`th bit of scalar_u is on and the bit at
      * index 1 is on if the `index`th bit of scalar_v is on.
      * Examples:
@@ -249,7 +249,7 @@ contract P256Verifier {
         uint256 zz,
         uint256 zzz
     ) internal pure returns (bool flag) {
-        // invariant((zz == 0 && zzz == 0) || ecAff_isOnCurve(x, y) for affine 
+        // invariant((zz == 0 && zzz == 0) || ecAff_isOnCurve(x, y) for affine
         // form of the point)
 
         return (zz == 0 && zzz == 0);
@@ -311,20 +311,20 @@ contract P256Verifier {
     }
 
     /**
-     * @dev Double a ZZ point 
+     * @dev Double a ZZ point
      * Uses http://hyperelliptic.org/EFD/g1p/auto-shortw-xyzz.html#doubling-dbl-2008-s-1
      * Handles point at infinity gracefully
      */
     function ecZZ_double_zz(uint256 x1,
         uint256 y1, uint256 zz1, uint256 zzz1) internal pure returns (uint256 x3, uint256 y3, uint256 zz3, uint256 zzz3) {
         if (ecZZ_IsInf(zz1, zzz1)) return ecZZ_PointAtInf();
-    
+
         uint256 comp_U = mulmod(2, y1, p); // U = 2*Y1
         uint256 comp_V = mulmod(comp_U, comp_U, p); // V = U^2
         uint256 comp_W = mulmod(comp_U, comp_V, p); // W = U*V
         uint256 comp_S = mulmod(x1, comp_V, p); // S = X1*V
         uint256 comp_M = addmod(mulmod(3, mulmod(x1, x1, p), p), mulmod(a, mulmod(zz1, zz1, p), p), p); //M = 3*(X1)^2 + a*(zz1)^2
-        
+
         x3 = addmod(mulmod(comp_M, comp_M, p), mulmod(minus_2modp, comp_S, p), p); // M^2 + (-2)*S
         y3 = addmod(mulmod(comp_M, addmod(comp_S, p - x3, p), p), mulmod(p - comp_W, y1, p), p); // M*(S+(-X3)) + (-W)*Y1
         zz3 = mulmod(comp_V, zz1, p); // V*ZZ1
@@ -332,7 +332,7 @@ contract P256Verifier {
     }
 
     /**
-     * @dev Double an affine point and return as a ZZ point 
+     * @dev Double an affine point and return as a ZZ point
      * Uses http://hyperelliptic.org/EFD/g1p/auto-shortw-xyzz.html#doubling-mdbl-2008-s-1
      * Handles point at infinity gracefully
      */
@@ -345,7 +345,7 @@ contract P256Verifier {
         zzz3 = mulmod(comp_U, zz3, p); // W = U*V = zzz3
         uint256 comp_S = mulmod(x1, zz3, p); // S = X1*V
         uint256 comp_M = addmod(mulmod(3, mulmod(x1, x1, p), p), a, p); // M = 3*(X1)^2 + a
-        
+
         x3 = addmod(mulmod(comp_M, comp_M, p), mulmod(minus_2modp, comp_S, p), p); // M^2 + (-2)*S
         y3 = addmod(mulmod(comp_M, addmod(comp_S, p - x3, p), p), mulmod(p - zzz3, y1, p), p); // M*(S+(-X3)) + (-W)*Y1
     }
@@ -408,18 +408,25 @@ contract P256Verifier {
     /**
      * @dev u^-1 mod f = u^(phi(f) - 1) mod f = u^(f-2) mod f for prime f
      * by Fermat's little theorem, compute u^(f-2) mod f using modexp precompile
-     * Assume f != 0. If u is 0, then u^-1 mod f is undefined mathematically, 
+     * Assume f != 0. If u is 0, then u^-1 mod f is undefined mathematically,
      * but this function returns 0.
      */
     function modInv(uint256 u, uint256 f, uint256 minus_2modf) internal view returns (uint256 result) {
-        // invariant(f != 0);
-        // invariant(f prime);
 
-        // This seems like a relatively standard way to use this precompile:
-        // https://github.com/OpenZeppelin/openzeppelin-contracts/pull/3298/files#diff-489d4519a087ca2c75be3315b673587abeca3b302f807643e97efa7de8cb35a5R427
+        require(f != 0, "Modulus f cannot be zero");
 
-        (bool success, bytes memory ret) = (address(0x05).staticcall(abi.encode(32, 32, 32, u, minus_2modf, f)));
-        assert(success); // precompile should never fail on regular EVM environments
-        result = abi.decode(ret, (uint256));
+        result = 1;
+        u = u % f;
+
+        while (minus_2modf > 0) {
+            if (minus_2modf & 1 == 1) {
+                result = mulmod(result, u, f);
+            }
+
+            minus_2modf = minus_2modf >> 1;
+
+            u = mulmod(u, u, f);
+        }
+
     }
 }
